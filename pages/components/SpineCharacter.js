@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export default function SpineCharacter({ currentAnimation }) {
+export default function SpineCharacter({ currentAnimation, animationSpeed = 1 }) {
   const canvasRef = useRef(null);
   const animationStateRef = useRef(null); // Use a ref to hold animationState
   let renderRef = useRef(null); // Ref to hold the render function
@@ -26,7 +26,7 @@ export default function SpineCharacter({ currentAnimation }) {
       skeleton.scaleX = scale;
       skeleton.scaleY = -scale;
 
-      animationStateRef.current.update(delta);
+      animationStateRef.current.update(delta * animationStateRef.current.timeScale); // Apply timeScale
       animationStateRef.current.apply(skeleton);
       skeleton.updateWorldTransform(window.spine.Physics.update);
       skeletonRenderer.draw(skeleton);
@@ -65,11 +65,12 @@ export default function SpineCharacter({ currentAnimation }) {
       const animationStateData = new window.spine.AnimationStateData(skeleton.data);
       animationStateData.defaultMix = 0.2;
       const animationState = new window.spine.AnimationState(animationStateData);
+      animationState.timeScale = animationSpeed; // Set initial animation speed
 
       animationStateRef.current = animationState; // Store in ref
 
       // Set initial animation
-      animationState.setAnimation(0, "run", true);
+      animationState.setAnimation(0, currentAnimation, true);
 
       renderRef.current = requestAnimationFrame(render); // Start rendering
     };
@@ -89,7 +90,7 @@ export default function SpineCharacter({ currentAnimation }) {
         window.cancelAnimationFrame(renderRef.current);
       }
     };
-  }, []);
+  }, [animationSpeed]); // Depend on animationSpeed
 
   // Handle animation change
   useEffect(() => {
@@ -97,6 +98,13 @@ export default function SpineCharacter({ currentAnimation }) {
       animationStateRef.current.setAnimation(0, currentAnimation, true);
     }
   }, [currentAnimation]);
+
+  // Update animation speed
+  useEffect(() => {
+    if (animationStateRef.current) {
+      animationStateRef.current.timeScale = animationSpeed;
+    }
+  }, [animationSpeed]);
 
   return (
     <canvas
