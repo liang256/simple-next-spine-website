@@ -3,10 +3,36 @@ import { useEffect, useRef } from "react";
 export default function SpineCharacter({ currentAnimation }) {
   const canvasRef = useRef(null);
   const animationStateRef = useRef(null); // Use a ref to hold animationState
+  let renderRef = useRef(null); // Ref to hold the render function
 
   useEffect(() => {
     let lastFrameTime = Date.now() / 1000;
     let canvas, context, skeletonRenderer, assetManager, skeleton, bounds;
+
+    const render = () => {
+      const now = Date.now() / 1000;
+      const delta = now - lastFrameTime;
+      lastFrameTime = now;
+
+      if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+      }
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      skeleton.x = canvas.width / 2;
+      skeleton.y = canvas.height - canvas.height * 0.1;
+      const scale = (canvas.height / bounds.height) * 0.8;
+      skeleton.scaleX = scale;
+      skeleton.scaleY = -scale;
+
+      animationStateRef.current.update(delta);
+      animationStateRef.current.apply(skeleton);
+      skeleton.updateWorldTransform(window.spine.Physics.update);
+      skeletonRenderer.draw(skeleton);
+
+      renderRef.current = requestAnimationFrame(render);
+    };
 
     const load = async () => {
       canvas = canvasRef.current;
@@ -45,32 +71,7 @@ export default function SpineCharacter({ currentAnimation }) {
       // Set initial animation
       animationState.setAnimation(0, "run", true);
 
-      const render = () => {
-        const now = Date.now() / 1000;
-        const delta = now - lastFrameTime;
-        lastFrameTime = now;
-
-        if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
-          canvas.width = canvas.clientWidth;
-          canvas.height = canvas.clientHeight;
-        }
-        context.clearRect(0, 0, canvas.width, canvas.height);
-
-        skeleton.x = canvas.width / 2;
-        skeleton.y = canvas.height - canvas.height * 0.1;
-        const scale = (canvas.height / bounds.height) * 0.8;
-        skeleton.scaleX = scale;
-        skeleton.scaleY = -scale;
-
-        animationState.update(delta);
-        animationState.apply(skeleton);
-        skeleton.updateWorldTransform(window.spine.Physics.update);
-        skeletonRenderer.draw(skeleton);
-
-        requestAnimationFrame(render);
-      };
-
-      requestAnimationFrame(render);
+      renderRef.current = requestAnimationFrame(render); // Start rendering
     };
 
     const loadSpineCanvas = () => {
@@ -83,7 +84,10 @@ export default function SpineCharacter({ currentAnimation }) {
     loadSpineCanvas();
 
     return () => {
-      window.cancelAnimationFrame(render);
+      // Cancel animation frame when component unmounts
+      if (renderRef.current) {
+        window.cancelAnimationFrame(renderRef.current);
+      }
     };
   }, []);
 
