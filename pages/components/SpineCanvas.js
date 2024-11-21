@@ -5,10 +5,10 @@ export default function SpineCanvas() {
 
   useEffect(() => {
     let lastFrameTime = Date.now() / 1000;
-    let context, skeletonRenderer, skeleton, animationState, bounds, assetManager;
+    let canvas, context, skeletonRenderer, assetManager, skeleton, animationState, bounds;
 
     const load = async () => {
-      const canvas = canvasRef.current;
+      canvas = canvasRef.current;
       context = canvas.getContext("2d");
 
       skeletonRenderer = new window.spine.SkeletonRenderer(context);
@@ -16,46 +16,61 @@ export default function SpineCanvas() {
 
       // Load assets
       assetManager = new window.spine.AssetManager("/spine-assets/");
-      assetManager.loadBinary("spineboy-pro.skel");
+      assetManager.loadText("spineboy-ess.json");
       assetManager.loadTextureAtlas("spineboy.atlas");
       await assetManager.loadAll();
 
-      // Set up skeleton
+      // Create skeleton data
       const atlas = assetManager.require("spineboy.atlas");
       const atlasLoader = new window.spine.AtlasAttachmentLoader(atlas);
-      const skeletonBinary = new window.spine.SkeletonBinary(atlasLoader);
-      const skeletonData = skeletonBinary.readSkeletonData(assetManager.require("spineboy-pro.skel"));
+      const skeletonJson = new window.spine.SkeletonJson(atlasLoader);
+      const skeletonData = skeletonJson.readSkeletonData(assetManager.require("spineboy-ess.json"));
 
       skeleton = new window.spine.Skeleton(skeletonData);
       skeleton.setToSetupPose();
       skeleton.updateWorldTransform(window.spine.Physics.update);
       bounds = skeleton.getBoundsRect();
 
+      // Attach bounding box for the head
+      skeleton.setAttachment("head-bb", "head");
+
+      // Setup animation state
       const animationStateData = new window.spine.AnimationStateData(skeleton.data);
       animationStateData.defaultMix = 0.2;
       animationState = new window.spine.AnimationState(animationStateData);
 
-      // Set animation
+      // Set initial animation
       animationState.setAnimation(0, "run", true);
 
-      // Start rendering
+      // Add click listener
+      canvas.addEventListener("click", (event) => {
+        const canvasRect = canvas.getBoundingClientRect();
+        const mouseX = event.x - canvasRect.x;
+        const mouseY = event.y - canvasRect.y;
+
+        const skelBounds = new window.spine.SkeletonBounds();
+        skelBounds.update(skeleton);
+
+        if (skelBounds.containsPoint(mouseX, mouseY)) {
+          animationState.setAnimation(0, "jump", false);
+          animationState.addAnimation(0, "run", true);
+        }
+      });
+
       requestAnimationFrame(render);
     };
 
     const render = () => {
-      const canvas = canvasRef.current;
       const now = Date.now() / 1000;
       const delta = now - lastFrameTime;
       lastFrameTime = now;
 
-      // Resize canvas
       if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
       }
       context.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Center skeleton
       skeleton.x = canvas.width / 2;
       skeleton.y = canvas.height - canvas.height * 0.1;
       const scale = (canvas.height / bounds.height) * 0.8;
@@ -70,15 +85,14 @@ export default function SpineCanvas() {
       requestAnimationFrame(render);
     };
 
-    // Load spine-canvas.js dynamically if not bundled
-    const loadScript = () => {
+    const loadSpineCanvas = () => {
       const script = document.createElement("script");
-      script.src = "/libs/spine-canvas.js"; // Update this if hosted elsewhere
+      script.src = "/libs/spine-canvas.js";
       script.onload = load;
       document.body.appendChild(script);
     };
 
-    loadScript();
+    loadSpineCanvas();
 
     return () => {
       window.cancelAnimationFrame(render);
